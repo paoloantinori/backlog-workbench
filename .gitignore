@@ -1,0 +1,13 @@
+node_modules/
+plugin/.claude-plugin/types/
+.DS_Store
+*.log
+*.bak*
+.env
+.env.*
+evidence/
+fixtures/
+claudedocs/
+public/
+todo.md
+temp.md

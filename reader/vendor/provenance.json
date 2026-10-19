@@ -1,0 +1,20 @@
+{
+  "commit": "2225c4167234fd300b477cc3207689c8454abed1",
+  "files": {
+    "LICENSE": "2039a3f558949ff32ce20b9a5a1dd36d01e5a7716a35dc0d0b7400bf68a1136e",
+    "src/utils/task-id.ts": "8bfd099e9865e32b56c995c5f5c4a0ff3e8c9150f6f6bbb671f7c6718f7cfad8",
+    "src/utils/prefix-config.ts": "c964d84e34039743126160e796639b1eebae0b3f8d99be035800c3ecddc71cf3",
+    "src/types/index.ts": "70827035b92d361e16891be797d0498fc0a9f68ff470be5b2f9a365181873266",
+    "src/markdown/parser.ts": "caa0314b355435c6aaa83bbcf3c124ce62a702d7b88511bb95feed5fd8a409f0",
+    "src/markdown/structured-sections.ts": "914bf2de420704f8c0efbc09174f416eaf923ef52c7203e70d788dc8dbba1777",
+    "src/markdown/section-titles.ts": "ce0fba15be9c43bf0c18628be21f3b42720be0639dcd3f53e43561b6fb1b30b7",
+    "src/markdown/frontmatter.ts": "d06a030573bb25131376ea495ec26fb7d28934513b072a79905b413852f6a977",
+    "src/utils/priority-config.ts": "8096e78c0547a743ac013d46df826a4d2d01cb1704d951834f9435b767d86476",
+    "src/utils/due-date.ts": "40fd17154db8c78e2fc65aa691b7bf03c4ceeea654e3ed94b6e27eed0e79ae83",
+    "src/utils/task-sorting.ts": "e06ad8864a651e26009cfc26d71c6201086689e9583ac2cb7b238ac5ce1e0cab"
+  },
+  "externals": [
+    "gray-matter",
+    "mdast-util-from-markdown"
+  ]
+}

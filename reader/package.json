@@ -1,0 +1,13 @@
+{
+  "name": "backlog-workbench-reader",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build.mjs",
+    "test": "node --test reader.test.mjs"
+  },
+  "dependencies": {
+    "gray-matter": "4.0.3",
+    "mdast-util-from-markdown": "2.1.0"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "backlog-workbench",
+  "version": "0.1.0",
+  "description": "Native Backlog pane experiment. No task writes.",
+  "author": { "name": "Paolo Antinori" },
+  "types": "./state.d.ts"
+}
