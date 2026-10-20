@@ -10,7 +10,10 @@ export class BacklogError extends Error {
 }
 
 const SANDBOX_PROFILE = '(version 1)(allow default)(deny file-write*)(deny network*)'
-const NODE_BIN = '/opt/homebrew/bin/node'
+const SANDBOX_EXEC = '/usr/bin/sandbox-exec'
+// Known Homebrew location, tried before PATH for a fast hit; not assumed to exist.
+const HOMEBREW_NODE = '/opt/homebrew/bin/node'
+let cachedNodeBin: string | null = null
 const TASK_ID = /^[A-Za-z][A-Za-z0-9]{0,31}-\d+(?:\.\d+){0,9}$/
 const MAX_CONTEXT_CHARS = 90000
 
@@ -21,7 +24,7 @@ export async function resolveSource($: EngineInterface): Promise<Source> {
   if (rootStat?.kind !== 'dir' || !rootStat.realPath) {
     throw new BacklogError(`Cannot resolve the session root: ${given}`)
   }
-  const root = rootStat.realPath.replace(/\/+$/, '')
+  const root = rootStat.realPath.replace(/[/\\]+$/, '')
   if (!root) throw new BacklogError('The filesystem root is not a supported project root')
   for (const name of ['backlog.config.yml', 'backlog.json']) {
     if (await $.fs.exists(`${root}/${name}`)) {
@@ -30,7 +33,7 @@ export async function resolveSource($: EngineInterface): Promise<Source> {
   }
   for (const [relative, kind] of [['backlog', 'dir'], ['backlog/config.yml', 'file']] as const) {
     const stat = await statOrUndefined($, `${root}/${relative}`)
-    if (stat?.kind !== kind || !stat.realPath || !stat.realPath.startsWith(`${root}/`)) {
+    if (stat?.kind !== kind || !stat.realPath || !isWithin(root, stat.realPath)) {
       throw new BacklogError(`Cannot verify ${relative} inside ${root}; the project is not linked`)
     }
   }
@@ -41,8 +44,30 @@ export async function readTasks($: EngineInterface, source: Source): Promise<Tas
   return parseList(await runConfined($, source, ['list'], 10000))
 }
 
-export function confinedArgv(pluginRoot: string, source: Source, args: readonly string[]): string[] {
-  return ['/usr/bin/sandbox-exec', '-p', SANDBOX_PROFILE, NODE_BIN, `${pluginRoot}/reader.cjs`, '--root', source.root, ...args]
+export function readerArgv(pluginRoot: string, source: Source, args: readonly string[], nodeBin: string, sandbox: boolean): string[] {
+  const direct = [nodeBin, `${pluginRoot}/reader.cjs`, '--root', source.root, ...args]
+  return sandbox ? [SANDBOX_EXEC, '-p', SANDBOX_PROFILE, ...direct] : direct
+}
+
+async function resolveNodeBin($: EngineInterface): Promise<string> {
+  if (cachedNodeBin) return cachedNodeBin
+  if (await $.fs.exists(HOMEBREW_NODE)) {
+    cachedNodeBin = HOMEBREW_NODE
+    return cachedNodeBin
+  }
+  const searchPath = await $.env.get('PATH')
+  const entries = typeof searchPath === 'string' && searchPath ? searchPath.split(searchPath.includes(';') ? ';' : ':') : []
+  for (const entry of entries) {
+    if (!entry) continue
+    for (const name of ['node', 'node.exe']) {
+      const candidate = entry.endsWith('/') || entry.endsWith('\\') ? entry + name : entry + '/' + name
+      if (await $.fs.exists(candidate)) {
+        cachedNodeBin = candidate
+        return cachedNodeBin
+      }
+    }
+  }
+  throw new BacklogError('Node was not found; install Node.js on PATH to read backlog tasks')
 }
 
 export async function readTask($: EngineInterface, source: Source, id: string, timeoutMs = 3000): Promise<TaskDetail> {
@@ -122,7 +147,9 @@ export function taskRevision(task: TaskDetail): string {
 async function runConfined($: EngineInterface, source: Source, args: readonly string[], timeoutMs: number): Promise<string> {
   let result: ProcessRunResult
   try {
-    result = await $.process.run(confinedArgv($.plugin.root, source, args), {
+    const nodeBin = await resolveNodeBin($)
+    const sandbox = await $.fs.exists(SANDBOX_EXEC)
+    result = await $.process.run(readerArgv($.plugin.root, source, args, nodeBin, sandbox), {
       cwd: source.root, env: { NODE_OPTIONS: '', NODE_PATH: '' }, timeoutMs,
     })
   } catch (cause) {
@@ -176,6 +203,10 @@ function requireString(value: unknown, name: string): string {
 
 async function statOrUndefined($: EngineInterface, path: string) {
   return $.fs.stat(path, { resolve: true }).catch(() => undefined)
+}
+
+function isWithin(root: string, path: string): boolean {
+  return path.startsWith(root + '/') || path.startsWith(root + '\\')
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1,6 +1,6 @@
-import { open, readdir, realpath } from 'node:fs/promises'
+import { open, readdir, realpath, stat } from 'node:fs/promises'
 import { constants } from 'node:fs'
-import { join, matchesGlob, sep } from 'node:path'
+import { isAbsolute, join, matchesGlob, sep } from 'node:path'
 import { parseTask } from './vendor/markdown/parser.ts'
 import { parseFrontmatter } from './vendor/markdown/frontmatter.ts'
 import { canonicalTaskId, normalizeTaskId } from './vendor/utils/task-id.ts'
@@ -15,8 +15,11 @@ const DIRECTORIES = [
 ]
 const MAX_FILE_BYTES = 1_048_576
 const MAX_TOTAL_BYTES = 16_777_216
-// macOS sys/fcntl.h; Node exposes O_NOFOLLOW for the last component only.
+// macOS sys/fcntl.h; other platforms expose O_NOFOLLOW for the last component only.
 const O_NOFOLLOW_ANY = 0x20000000
+// Final-component symlink refusal per platform; within() containment covers ancestors.
+const NOFOLLOW_FLAGS = process.platform === 'darwin' ? O_NOFOLLOW_ANY : (constants.O_NOFOLLOW ?? 0)
+const EXTRA_FLAGS = process.platform === 'win32' ? 0 : constants.O_NONBLOCK
 
 type RecordFile = { task: ReturnType<typeof parseTask>; path: string; active: boolean }
 
@@ -28,11 +31,19 @@ async function within(root: string, path: string): Promise<string> {
 
 async function readFile(root: string, path: string, buffer: Buffer): Promise<string> {
   const filename = await within(root, join(root, path))
-  const file = await open(filename, constants.O_RDONLY | O_NOFOLLOW_ANY | constants.O_NONBLOCK)
+  const file = await open(filename, constants.O_RDONLY | NOFOLLOW_FLAGS | EXTRA_FLAGS)
   try {
-    const stat = await file.stat()
-    if (!stat.isFile()) throw new Error(`${path}: not a regular file`)
-    if (stat.size > MAX_FILE_BYTES) throw new Error(`${path}: exceeds ${MAX_FILE_BYTES} bytes`)
+    const opened = await file.stat()
+    if (!opened.isFile()) throw new Error(`${path}: not a regular file`)
+    if (opened.size > MAX_FILE_BYTES) throw new Error(`${path}: exceeds ${MAX_FILE_BYTES} bytes`)
+    // Linux O_NOFOLLOW guards only the final component, so a parent directory swapped
+    // for a symlink between the realpath above and this open is followed. Re-resolving
+    // and comparing file identity closes that window; macOS refuses it in the kernel.
+    const confirmed = await within(root, filename)
+    const confirmedStat = await stat(confirmed)
+    if (confirmedStat.dev !== opened.dev || confirmedStat.ino !== opened.ino) {
+      throw new Error(`${path}: file changed while opening`)
+    }
     let size = 0
     while (size < buffer.length) {
       const { bytesRead } = await file.read(buffer, size, buffer.length - size, null)
@@ -102,11 +113,11 @@ async function corpus(root: string) {
 }
 
 function trimTrailingSlashes(path: string): string {
-  return path.replace(/\/+$/, '') || '/'
+  return path.replace(/[/\\]+$/, '') || '/'
 }
 
 async function verifiedRoot(expected: string): Promise<string> {
-  if (!expected.startsWith('/')) throw new Error('The expected project root must be an absolute canonical path')
+  if (!isAbsolute(expected)) throw new Error('The expected project root must be an absolute canonical path')
   const root = trimTrailingSlashes(expected)
   if (root === '/') throw new Error('The filesystem root is not a supported project root')
   // The parent-verified path is the trust anchor. realpath(expected) is deliberately not
@@ -118,7 +129,6 @@ async function verifiedRoot(expected: string): Promise<string> {
 }
 
 async function main() {
-  if (process.platform !== 'darwin') throw new Error('This reader requires macOS O_NOFOLLOW_ANY protection')
   const argv = process.argv.slice(2)
   const usage = 'Usage: reader.cjs --root <canonical-root> list | view <task-id>'
   if (argv[0] !== '--root' || typeof argv[1] !== 'string' || argv[1] === '') throw new Error(usage)

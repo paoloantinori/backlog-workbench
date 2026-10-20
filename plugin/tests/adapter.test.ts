@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { confinedArgv, contextFor, taskRevision, parseDetail, parseList } from '../backlog'
+import { readerArgv, contextFor, taskRevision, parseDetail, parseList } from '../backlog'
 
 const row = { id: 'DEMO-1', title: 'Synthetic task', status: 'Waiting Review' }
 const task = {
@@ -52,20 +52,19 @@ test('revision changes when a checklist marker or task text changes', () => {
   expect(taskRevision({ ...parsed, title: 'Changed' })).not.toEqual(taskRevision(parsed))
 })
 
-test('confined invocation passes the expected canonical root before the mode', () => {
+test('reader invocation passes the expected canonical root before the mode', () => {
   const source = { root: '/synthetic/canonical/root', sessionId: 'session-1' }
-  expect(confinedArgv('/plugins/backlog-workbench', source, ['list'])).toEqual([
+  expect(readerArgv('/plugins/backlog-workbench', source, ['list'], '/usr/bin/node', true)).toEqual([
     '/usr/bin/sandbox-exec',
     '-p',
     '(version 1)(allow default)(deny file-write*)(deny network*)',
-    '/opt/homebrew/bin/node',
+    '/usr/bin/node',
     '/plugins/backlog-workbench/reader.cjs',
     '--root',
     '/synthetic/canonical/root',
     'list',
   ])
-  expect(confinedArgv('/plugins/backlog-workbench', source, ['view', 'DEMO-1'])).toEqual([
-    '/usr/bin/sandbox-exec', '-p', '(version 1)(allow default)(deny file-write*)(deny network*)',
-    '/opt/homebrew/bin/node', '/plugins/backlog-workbench/reader.cjs', '--root', source.root, 'view', 'DEMO-1',
+  expect(readerArgv('/plugins/backlog-workbench', source, ['view', 'DEMO-1'], '/usr/bin/node', false)).toEqual([
+    '/usr/bin/node', '/plugins/backlog-workbench/reader.cjs', '--root', source.root, 'view', 'DEMO-1',
   ])
 })

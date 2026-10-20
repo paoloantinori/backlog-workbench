@@ -4947,6 +4947,8 @@ var DIRECTORIES = [
 var MAX_FILE_BYTES = 1048576;
 var MAX_TOTAL_BYTES = 16777216;
 var O_NOFOLLOW_ANY = 536870912;
+var NOFOLLOW_FLAGS = process.platform === "darwin" ? O_NOFOLLOW_ANY : import_node_fs.constants.O_NOFOLLOW ?? 0;
+var EXTRA_FLAGS = process.platform === "win32" ? 0 : import_node_fs.constants.O_NONBLOCK;
 async function within(root, path) {
   const resolved = await import_promises.realpath(path);
   if (!resolved.startsWith(root + import_node_path.sep))
@@ -4955,13 +4957,18 @@ async function within(root, path) {
 }
 async function readFile(root, path, buffer) {
   const filename = await within(root, import_node_path.join(root, path));
-  const file = await import_promises.open(filename, import_node_fs.constants.O_RDONLY | O_NOFOLLOW_ANY | import_node_fs.constants.O_NONBLOCK);
+  const file = await import_promises.open(filename, import_node_fs.constants.O_RDONLY | NOFOLLOW_FLAGS | EXTRA_FLAGS);
   try {
-    const stat = await file.stat();
-    if (!stat.isFile())
+    const opened = await file.stat();
+    if (!opened.isFile())
       throw new Error(`${path}: not a regular file`);
-    if (stat.size > MAX_FILE_BYTES)
+    if (opened.size > MAX_FILE_BYTES)
       throw new Error(`${path}: exceeds ${MAX_FILE_BYTES} bytes`);
+    const confirmed = await within(root, filename);
+    const confirmedStat = await import_promises.stat(confirmed);
+    if (confirmedStat.dev !== opened.dev || confirmedStat.ino !== opened.ino) {
+      throw new Error(`${path}: file changed while opening`);
+    }
     let size = 0;
     while (size < buffer.length) {
       const { bytesRead } = await file.read(buffer, size, buffer.length - size, null);
@@ -5041,10 +5048,10 @@ ${await readFile(root, "backlog/config.yml", buffer)}
   return { groups, priorities, prefix };
 }
 function trimTrailingSlashes(path) {
-  return path.replace(/\/+$/, "") || "/";
+  return path.replace(/[/\\]+$/, "") || "/";
 }
 async function verifiedRoot(expected) {
-  if (!expected.startsWith("/"))
+  if (!import_node_path.isAbsolute(expected))
     throw new Error("The expected project root must be an absolute canonical path");
   const root = trimTrailingSlashes(expected);
   if (root === "/")
@@ -5055,8 +5062,6 @@ async function verifiedRoot(expected) {
   return root;
 }
 async function main() {
-  if (process.platform !== "darwin")
-    throw new Error("This reader requires macOS O_NOFOLLOW_ANY protection");
   const argv = process.argv.slice(2);
   const usage = "Usage: reader.cjs --root <canonical-root> list | view <task-id>";
   if (argv[0] !== "--root" || typeof argv[1] !== "string" || argv[1] === "")

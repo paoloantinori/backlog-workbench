@@ -50,7 +50,7 @@ async function setup<S extends 'terminal' | 'desktop' | 'mobile' = 'terminal'>($
   })
   on('ui.close', () => { host.panes = []; return { value: undefined } })
   on('ui.toast', () => ({ value: undefined }))
-  on('fs.exists', ($, e) => ({ value: e.path === `${host.root}/backlog/config.yml` }))
+  on('fs.exists', ($, e) => ({ value: e.path === `${host.root}/backlog/config.yml` || e.path === '/opt/homebrew/bin/node' || e.path === '/usr/bin/sandbox-exec' }))
   on('fs.stat', ($, e) => ({ value: { kind: e.path.endsWith('config.yml') ? 'file' : 'dir', size: 100, mtimeMs: 1, isLink: false, realPath: e.path } }))
   on('env.get', () => ({ value: undefined }))
   on('process.run', async ($, e) => {

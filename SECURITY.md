@@ -6,9 +6,9 @@ Backlog Workbench reads local task files and prepares context for an explicit us
 
 Install the mod only from a source you trust. The plugin code, bundled reader, Node executable, and Claude Code runtime execute locally. The controls below do not protect you from someone who can replace those programs.
 
-The reader runs only on macOS. The adapter invokes it through `sandbox-exec` with filesystem writes and network access denied. The policy applies to the reader subprocess and its descendants. It does not restrict the rest of the Claude Code session, and it does not deny every filesystem read.
+The reader runs on macOS, Linux, and Windows. On macOS the adapter invokes it through `sandbox-exec` with filesystem writes and network access denied, applied to the reader subprocess and its descendants. On Linux and Windows no OS-enforced sandbox is available to the adapter; the reader is read-only by construction, opening files with `O_RDONLY` and containing no write or network code. A bug in the reader could still write on those platforms, which the macOS sandbox would block. The confinement never restricts the rest of the Claude Code session, and it does not deny every filesystem read on any platform.
 
-The adapter selects a canonical project root. The reader must match that root before it reads the corpus. It rejects paths that resolve outside the project and uses macOS `O_NOFOLLOW_ANY` when it opens files to reject symlink substitutions. These checks are not an atomic snapshot of a directory that another process can modify concurrently.
+The adapter selects a canonical project root. The reader must match that root before it reads the corpus. It rejects paths that resolve outside the project and refuses symlinked files at open time: `O_NOFOLLOW_ANY` on macOS, and `O_NOFOLLOW` plus a resolved-path and file-identity re-check after open on Linux and Windows. These checks are not an atomic snapshot of a directory that another process can modify concurrently.
 
 The reader accepts only the supported YAML frontmatter form. It reuses pinned Backlog.md parsing code and rejects malformed records, ambiguous task identities, oversized files, and truncated subprocess output. Read errors do not silently fall back to sample or cached task data.
 
