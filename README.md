@@ -4,6 +4,18 @@ Browse [Backlog.md](https://github.com/MrLesk/Backlog.md) tasks inside Claude Co
 
 This is an experimental native mod. It reads task files and can attach selected task data to your next message. It does not edit tasks, mark work complete, or start agents.
 
+## Screenshots
+
+Rendered from native terminal captures with synthetic demo tasks. The images are cropped to the pane and the Backlog footer control.
+
+### Browse tasks
+
+![Browse view with synthetic demo tasks, colored IDs and saved statuses, search, a status filter, and the Backlog footer control](docs/images/browse.png)
+
+### Read a task
+
+![Task detail with synthetic demo text, highlighted links, file paths and task IDs, Back to list, attachment controls, and the Backlog footer control](docs/images/task-detail.png)
+
 ## Requirements
 
 - A macOS host. The reader uses `sandbox-exec` and macOS `O_NOFOLLOW_ANY`. It refuses to run on Linux or Windows.
